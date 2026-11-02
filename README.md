@@ -186,7 +186,12 @@ Everything lives in `~/kanzo`: the board in `kanzo.db`, settings in `config.toml
 port = 4242
 listen = "127.0.0.1"   # sharing opens the board to your network; "0.0.0.0" keeps it open
 mcp_http = true        # MCP at /mcp
+hostnames = []         # additional DNS names used to reach a shared board
 ```
+
+If a shared board is reached through a name different from this computer's own
+name, add it to `hostnames`, for example `hostnames = ["board.example"]`.
+List only names under your control: each can be used to access the board.
 
 ## Small and fast
 

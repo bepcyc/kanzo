@@ -11,7 +11,7 @@ Fixes go into the latest release only.
 The board has no logins, so it relies on who can reach it:
 
 - By default it listens on `127.0.0.1`, this machine only. With `listen = "0.0.0.0"` in `config.toml`, anyone who can reach the port can read and change the board and use its MCP endpoint.
-- It answers only `localhost`, IP addresses and, on the network, this machine's own names, so a web page cannot reach it through DNS rebinding.
+- It answers only `localhost`, IP addresses and, on the network, this machine's own names and names explicitly configured in `hostnames`, so a web page cannot reach it through other names via DNS rebinding. Only configure names under your control.
 - It refuses browser requests sent from any page other than the board itself.
 - A Content Security Policy allows scripts only from the board, so even a bug in the Markdown renderer cannot run injected script.
 
