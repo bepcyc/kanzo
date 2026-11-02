@@ -30,6 +30,9 @@ mcp_http = true
 # The editor that file:/// links in tasks open in, as a full path. Without it,
 # macOS uses your default text editor, and other systems can't open them.
 # editor = "/usr/local/bin/cursor"
+
+# Additional DNS names used to reach the shared board.
+hostnames = []
 "#;
 
 const GITIGNORE: &str = "\
@@ -59,6 +62,7 @@ pub struct Config {
     _statuses: Option<toml::Value>,
     pub mcp_http: bool,
     pub editor: Option<PathBuf>,
+    pub hostnames: Vec<String>,
 }
 
 impl Default for Config {
@@ -69,6 +73,7 @@ impl Default for Config {
             _statuses: None,
             mcp_http: true,
             editor: None,
+            hostnames: Vec::new(),
         }
     }
 }

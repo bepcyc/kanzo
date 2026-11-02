@@ -36,7 +36,7 @@ const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self' 'unsa
 
 pub async fn serve(home: Home, open: bool) -> Result<()> {
     let port = home.config.port;
-    let guard = Arc::new(Guard::new(port, home.config.listen, Net::load(&home)));
+    let guard = Arc::new(Guard::new(port, home.config.listen, Net::load(&home), home.config.hostnames.clone()));
     let url = format!("http://localhost:{port}");
     let listener = match TcpListener::bind(SocketAddr::new(guard.address(), port)).await {
         Ok(l) => l,
@@ -236,6 +236,7 @@ async fn stamp_version(mut res: Response) -> Response {
 /// `localhost`, IP addresses and, when it listens on the network, this machine's own names.
 struct Guard {
     port: u16,
+    hostnames: Vec<String>,
     listen: IpAddr,
     net: Mutex<Net>,
     guests: Mutex<HashMap<IpAddr, (Instant, Option<String>)>>,
@@ -247,9 +248,10 @@ struct Guard {
 const GUEST_GONE: Duration = Duration::from_secs(30);
 
 impl Guard {
-    fn new(port: u16, listen: IpAddr, net: Net) -> Self {
+    fn new(port: u16, listen: IpAddr, net: Net, hostnames: Vec<String>) -> Self {
         Self {
             port,
+            hostnames,
             listen,
             net: Mutex::new(net),
             guests: Mutex::default(),
@@ -327,7 +329,7 @@ impl Guard {
         if name.eq_ignore_ascii_case("localhost") || ip.is_some_and(|ip| ip.is_loopback()) {
             return true;
         }
-        self.lan() && (ip.is_some() || self.names().iter().any(|n| n.eq_ignore_ascii_case(name)))
+        self.lan() && (ip.is_some() || self.names().iter().chain(&self.hostnames).any(|n| n.eq_ignore_ascii_case(name)))
     }
 }
 
@@ -957,7 +959,7 @@ mod tests {
     async fn open_from(home: &Home, from: Option<IpAddr>, path: &str) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        let guard = Arc::new(Guard::new(port, Ipv4Addr::LOCALHOST.into(), Net::Sharing));
+        let guard = Arc::new(Guard::new(port, Ipv4Addr::LOCALHOST.into(), Net::Sharing, vec![]));
         let mut app = router(home.clone(), guard, CancellationToken::new());
         if let Some(ip) = from {
             app = app.layer(Extension(ConnectInfo(SocketAddr::new(ip, 1))));
@@ -998,7 +1000,7 @@ mod tests {
 
     #[test]
     fn hosts() {
-        let local = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Private);
+        let local = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Private, vec![]);
         for ok in ["localhost", "localhost:4242", "127.0.0.1:4242", "[::1]:4242", "LOCALHOST:4242"] {
             assert!(local.allows(ok), "{ok}");
         }
@@ -1006,9 +1008,9 @@ mod tests {
             assert!(!local.allows(bad), "{bad}");
         }
 
-        let lan = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Sharing);
+        let lan = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Sharing, vec!["board.example".into()]);
         lan.names.set(vec!["pi".into(), "pi.local".into()]).unwrap();
-        for ok in ["localhost:4242", "192.168.1.5:4242", "[fe80::1]:4242", "pi.local:4242", "pi:4242", "PI.LOCAL."] {
+        for ok in ["localhost:4242", "192.168.1.5:4242", "[fe80::1]:4242", "pi.local:4242", "pi:4242", "PI.LOCAL.", "board.example:4242"] {
             assert!(lan.allows(ok), "{ok}");
         }
         for bad in ["evil.com:4242", "pi.evil.com:4242", "192.168.1.5:80"] {
@@ -1017,6 +1019,7 @@ mod tests {
 
         lan.set(Net::Private);
         assert!(!lan.allows("192.168.1.5:4242"));
+        assert!(!lan.allows("board.example:4242"));
         assert_eq!(lan.address(), IpAddr::from(Ipv4Addr::LOCALHOST));
     }
 }
