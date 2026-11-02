@@ -233,7 +233,8 @@ async fn stamp_version(mut res: Response) -> Response {
 }
 
 /// DNS rebinding needs a domain name the attacker controls, so the board only accepts
-/// `localhost`, IP addresses and, when it listens on the network, this machine's own names.
+/// `localhost`, IP addresses and, when it listens on the network, this machine's own names
+/// and the extra names in `hostnames`.
 struct Guard {
     port: u16,
     hostnames: Vec<String>,
@@ -936,6 +937,45 @@ mod tests {
 
     use super::*;
 
+    #[tokio::test]
+    async fn configured_hostname_serves_the_board() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let dir = tempfile::tempdir().unwrap();
+        let home = Home::open(dir.path().to_path_buf()).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let guard = Arc::new(Guard::new(
+            address.port(),
+            Ipv4Addr::LOCALHOST.into(),
+            Net::Sharing,
+            vec!["board.example".into()],
+        ));
+        let app = router(home, guard.clone(), CancellationToken::new());
+        let server =
+            tokio::spawn(axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).into_future());
+        for (host, origin, expected) in [
+            (format!("board.example:{}", address.port()), None, 200),
+            (
+                format!("board.example:{}", address.port()),
+                Some(format!("http://board.example:{}", address.port())),
+                200,
+            ),
+            (format!("board.example:{}", address.port()), Some("http://elsewhere.example".into()), 403),
+            (format!("other.example:{}", address.port()), None, 403),
+            ("board.example:1".into(), None, 403),
+        ] {
+            let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+            let origin = origin.map(|origin| format!("Origin: {origin}\r\n")).unwrap_or_default();
+            let request = format!("GET / HTTP/1.1\r\nHost: {host}\r\n{origin}Connection: close\r\n\r\n");
+            stream.write_all(request.as_bytes()).await.unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).await.unwrap();
+            assert!(response.starts_with(&format!("HTTP/1.1 {expected} ")), "{response}");
+        }
+        server.abort();
+    }
+
     #[test]
     fn changelog_is_for_this_version() {
         let heading = format!("## {}", update::CURRENT);
@@ -1010,7 +1050,15 @@ mod tests {
 
         let lan = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Sharing, vec!["board.example".into()]);
         lan.names.set(vec!["pi".into(), "pi.local".into()]).unwrap();
-        for ok in ["localhost:4242", "192.168.1.5:4242", "[fe80::1]:4242", "pi.local:4242", "pi:4242", "PI.LOCAL.", "board.example:4242"] {
+        for ok in [
+            "localhost:4242",
+            "192.168.1.5:4242",
+            "[fe80::1]:4242",
+            "pi.local:4242",
+            "pi:4242",
+            "PI.LOCAL.",
+            "board.example:4242",
+        ] {
             assert!(lan.allows(ok), "{ok}");
         }
         for bad in ["evil.com:4242", "pi.evil.com:4242", "192.168.1.5:80"] {

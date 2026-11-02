@@ -265,7 +265,12 @@ port = 4242
 listen = "127.0.0.1"   # sharing opens the board to your network; "0.0.0.0" keeps it open
 mcp_http = true        # MCP at /mcp
 editor = "/usr/local/bin/cursor"   # opens file:/// links; on macOS, your text editor without it
+hostnames = []         # additional DNS names used to reach a shared board
 ```
+
+If a shared board is reached through a name different from this computer's own
+name, add it to `hostnames`, for example `hostnames = ["board.example"]`.
+List only names under your control: each can be used to access the board.
 
 These settings stay on each machine: `kanzo sync` leaves them out.
 

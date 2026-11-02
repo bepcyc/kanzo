@@ -310,6 +310,15 @@ mod tests {
         assert_eq!(home.config.port, DEFAULT_PORT);
         assert!(home.config.mcp_http);
         assert!(home.config.listen.is_loopback());
+        assert!(home.config.hostnames.is_empty());
+    }
+
+    #[test]
+    fn reads_additional_hostnames() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("config.toml"), "hostnames = [\"board.example\"]\n").unwrap();
+        let home = Home::open(tmp.path().to_path_buf()).unwrap();
+        assert_eq!(home.config.hostnames, ["board.example"]);
     }
 
     #[test]
