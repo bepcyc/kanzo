@@ -36,7 +36,7 @@ const CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self' 'unsa
 
 pub async fn serve(home: Home, port: Option<u16>, open: bool) -> Result<()> {
     let port = port.unwrap_or(home.config.port);
-    let guard = Arc::new(Guard::new(port, home.config.listen, Net::load(&home)));
+    let guard = Arc::new(Guard::new(port, home.config.listen, Net::load(&home), home.config.hostnames.clone()));
     let url = format!("http://localhost:{port}");
     let listener = match TcpListener::bind(SocketAddr::new(guard.address(), port)).await {
         Ok(l) => l,
@@ -196,6 +196,7 @@ fn router(home: Home, guard: Arc<Guard>, shutdown: CancellationToken) -> Router 
 /// machine's own names. It never accepts other domain names.
 struct Guard {
     port: u16,
+    hostnames: Vec<String>,
     /// `listen` from config.toml: where the board listens unless shared.
     listen: IpAddr,
     /// Changed while the board runs, by its settings and `kanzo share`, `join` and `leave`.
@@ -213,9 +214,10 @@ struct Guard {
 const GUEST_GONE: Duration = Duration::from_secs(30);
 
 impl Guard {
-    fn new(port: u16, listen: IpAddr, net: Net) -> Self {
+    fn new(port: u16, listen: IpAddr, net: Net, hostnames: Vec<String>) -> Self {
         Self {
             port,
+            hostnames,
             listen,
             net: Mutex::new(net),
             guests: Mutex::default(),
@@ -300,7 +302,7 @@ impl Guard {
         if name.eq_ignore_ascii_case("localhost") || ip.is_some_and(|ip| ip.is_loopback()) {
             return true;
         }
-        self.lan() && (ip.is_some() || self.names().iter().any(|n| n.eq_ignore_ascii_case(name)))
+        self.lan() && (ip.is_some() || self.names().iter().chain(&self.hostnames).any(|n| n.eq_ignore_ascii_case(name)))
     }
 }
 
@@ -862,7 +864,7 @@ mod tests {
 
     #[test]
     fn hosts() {
-        let local = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Private);
+        let local = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Private, vec![]);
         for ok in ["localhost", "localhost:4242", "127.0.0.1:4242", "[::1]:4242", "LOCALHOST:4242"] {
             assert!(local.allows(ok), "{ok}");
         }
@@ -870,9 +872,9 @@ mod tests {
             assert!(!local.allows(bad), "{bad}");
         }
 
-        let lan = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Sharing);
+        let lan = Guard::new(4242, Ipv4Addr::LOCALHOST.into(), Net::Sharing, vec!["board.example".into()]);
         lan.names.set(vec!["pi".into(), "pi.local".into()]).unwrap();
-        for ok in ["localhost:4242", "192.168.1.5:4242", "[fe80::1]:4242", "pi.local:4242", "pi:4242", "PI.LOCAL."] {
+        for ok in ["localhost:4242", "192.168.1.5:4242", "[fe80::1]:4242", "pi.local:4242", "pi:4242", "PI.LOCAL.", "board.example:4242"] {
             assert!(lan.allows(ok), "{ok}");
         }
         for bad in ["evil.com:4242", "pi.evil.com:4242", "192.168.1.5:80"] {
@@ -882,6 +884,7 @@ mod tests {
         // Stopping sharing closes the board to other computers again.
         lan.set(Net::Private);
         assert!(!lan.allows("192.168.1.5:4242"));
+        assert!(!lan.allows("board.example:4242"));
         assert_eq!(lan.address(), IpAddr::from(Ipv4Addr::LOCALHOST));
     }
 }

@@ -27,6 +27,9 @@ listen = "127.0.0.1"
 # Also serve MCP over HTTP at http://localhost:<port>/mcp, for agents
 # that cannot start `kanzo mcp` themselves.
 mcp_http = true
+
+# Additional DNS names used to reach the shared board.
+hostnames = []
 "#;
 
 const GITIGNORE: &str = "\
@@ -57,11 +60,12 @@ pub struct Config {
     #[serde(rename = "statuses")]
     _statuses: Option<toml::Value>,
     pub mcp_http: bool,
+    pub hostnames: Vec<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { port: DEFAULT_PORT, listen: IpAddr::V4(Ipv4Addr::LOCALHOST), _statuses: None, mcp_http: true }
+        Self { port: DEFAULT_PORT, listen: IpAddr::V4(Ipv4Addr::LOCALHOST), _statuses: None, mcp_http: true, hostnames: Vec::new() }
     }
 }
 
