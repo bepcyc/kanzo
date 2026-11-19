@@ -105,7 +105,7 @@ Then ask: *"take the next task from kanzo and do it."* The agent:
 
 - finds the project from the git remote of its repo; link more repos from the project's ⋯ menu;
 - moves the card to `doing` and comments as it works;
-- on `review`, comments how to resume its session.
+- when it finishes or gets stuck, comments what is left and how to resume its session (no parking in `review`).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/task-dark.jpg">

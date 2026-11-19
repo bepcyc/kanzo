@@ -37,8 +37,9 @@ macro_rules! instructions {
             $whose,
             " machine, for all their projects. Tasks look like api#12. ",
             $project,
-            " Keep it current unasked: doing when you start a task, comments on what you did, review when you \
-             finish or get stuck, url for a PR you opened. On review, comment how to resume this session. Leave done and human tasks to the user. \
+            " Keep it current unasked: doing when you start a task, comments on what you did, url for a PR you \
+             opened. Don't park tasks in review: when you finish or get stuck, comment what is left and how to resume \
+             this session. Leave done and human tasks to the user. \
              Link files as [name](file:///path)."
         )
     };
@@ -243,7 +244,7 @@ struct UpdateTaskArgs {
     title: Option<String>,
     /// Markdown.
     description: Option<String>,
-    /// Column, like review.
+    /// Column, like doing.
     status: Option<String>,
     /// Comma-separated; "" clears.
     tags: Option<String>,
